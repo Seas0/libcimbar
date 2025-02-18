@@ -1,12 +1,15 @@
-var Main = function() {
+const Main = function() {
+let _interval = 20;
+let _pauseCount = 0;
 
-var _interval = 66;
-var _pause = 0;
+let _showStats = true;
+let _colorBits = 2;
+let _counter = 0;
+let _frameCount = 0;
+let _renderTime = 0;
+let _shaking = false;
 
-var _showStats = false;
-var _counter = 0;
-var _renderTime = 0;
-
+// internal helpers
 function toggleFullscreen()
 {
   if (document.fullscreenElement) {
@@ -38,7 +41,7 @@ function importFile(f)
   fileReader.readAsArrayBuffer(f);
 }
 
-// public interface
+// public interface, exposed as Main object
 return {
   init : function(canvas)
   {
@@ -58,9 +61,10 @@ return {
   resize : function()
   {
     // reset zoom
-    var canvas = document.getElementById('canvas');
-    var width = window.innerWidth - 10;
-    var height = window.innerHeight - 10;
+    const canvas = document.getElementById('canvas');
+    // TODO: account for the nav bar
+    const width = window.innerWidth - 10;
+    const height = window.innerHeight - 10;
     Main.scaleCanvas(canvas, width, height);
     Main.alignInvisibleClick(canvas);
   },
@@ -71,48 +75,48 @@ return {
     Main.togglePause(true);
   },
 
-  togglePause : function(pause)
+  togglePause : function(pauseCount)
   {
-    // pause is a cooldown. We pause to help autofocus, but we don't want to do it forever...
-    if (pause === undefined) {
-       pause = !Main.isPaused();
+    // pause is a cooldown counter.
+    // We pause to help autofocus, but we don't want to do it forever...
+    if (pauseCount === undefined) {
+       pauseCount = !Main.isPaused();
     }
-    _pause = pause? 15 : 0;
+    _pauseCount = pauseCount ? 15 : 0;
   },
 
   isPaused : function()
   {
-     return _pause > 0;
+     return _pauseCount > 0;
   },
 
   scaleCanvas : function(canvas, width, height)
   {
-    var dim = width;
-    if (height < dim) {
-      dim = height;
-    }
-    console.log(dim + "x" + dim);
+    let dim = height < width ? height : width;
+    console.log("scaling canvas to " + dim + "²");
     canvas.style.width = dim + "px";
     canvas.style.height = dim + "px";
   },
 
   alignInvisibleClick : function(canvas)
   {
+     // reset cursor invisible zone to
+     // the canvas size and position
      canvas = canvas || document.getElementById('canvas');
-     var cpos = canvas.getBoundingClientRect();
-     var invisible_click = document.getElementById("invisible_click");
+     const canvas_position = canvas.getBoundingClientRect();
+     const invisible_click = document.getElementById("invisible_click");
      invisible_click.style.width = canvas.style.width;
      invisible_click.style.height = canvas.style.height;
-     invisible_click.style.top = cpos.top + "px";
-     invisible_click.style.left = cpos.left + "px";
+     invisible_click.style.top = canvas_position.top + "px";
+     invisible_click.style.left = canvas_position.left + "px";
      invisible_click.style.zoom = canvas.style.zoom;
   },
 
   encode : function(filename, data)
   {
     console.log("encoding " + filename);
-    var res = Module._encode(data.byteOffset, data.length, -1);
-    console.log(res);
+    const res = Module._encode(data.byteOffset, data.length, -1);
+    console.log("encoder returns: " + res);
     Main.setTitle(filename);
     Main.setActive(true);
   },
@@ -125,6 +129,7 @@ return {
     if (files && files.length === 1) {
       importFile(files[0]);
     }
+    Main.setMode('B');
   },
 
   clickNav : function()
@@ -132,15 +137,15 @@ return {
     document.getElementById("nav-button").focus();
   },
 
-  blurNav : function(pause)
+  blurNav : function(pauseCount)
   {
-    if (pause === undefined) {
-       pause = true;
-    }
+    if (pauseCount === undefined)
+      pauseCount = 1;
+
     document.getElementById("nav-button").blur();
     document.getElementById("nav-content").blur();
     document.getElementById("nav-find-file-link").blur();
-    Main.togglePause(pause);
+    Main.togglePause(pauseCount);
   },
 
   clickFileInput : function()
@@ -151,51 +156,57 @@ return {
   fileInput : function(ev)
   {
     console.log("file input: " + ev);
-    var file = document.getElementById('file_input').files[0];
+    let file = document.getElementById('file_input').files[0];
     if (file)
        importFile(file);
     Main.blurNav(false);
+    Main.setMode('B');
   },
 
   nextFrame : function()
   {
     _counter += 1;
-    if (_pause > 0) {
-       _pause -= 1;
+    if (_pauseCount > 0) {
+      _pauseCount -= 1;
     }
-    var start = performance.now();
+    let start = performance.now();
     if (!Main.isPaused()) {
-       Module._render();
-       var frameCount = Module._next_frame();
+      Module._render();
+      _frameCount = Module._next_frame();
     }
-
-    var elapsed = performance.now() - start;
-    var nextInterval = _interval>elapsed? _interval-elapsed : 0;
+    let elapsed = performance.now() - start;
+    let nextInterval = _interval>elapsed? _interval-elapsed : 0;
     setTimeout(Main.nextFrame, nextInterval);
 
-    if (_showStats && frameCount) {
+    if (_showStats && _frameCount) {
       _renderTime += elapsed;
-      Main.setHTML( "status", elapsed + " : " + frameCount + " : " + Math.ceil(_renderTime/frameCount));
+      Main.setHTML( "status", elapsed + " : " + _frameCount + " : " + Math.ceil(_renderTime/_frameCount));
     }
     if ( !(_counter & 31) ) {
-       Main.resize();
+      Main.resize();
     }
   },
 
   setActive : function(active)
   {
     // hide cursor when there's a barcode active
-    var invisi = document.getElementById("invisible_click");
-    invisi.classList.remove("active");
-    invisi.classList.add("active");
+    const invisible_click = document.getElementById("invisible_click");
+    invisible_click.classList.remove("active");
+    invisible_click.classList.add("active");
   },
 
   setMode : function(mode_str)
   {
-    var is_4c = (mode_str == "4C");
-    Module._configure(2, 255, 255, is_4c);
+    const is_4c = (mode_str == "4C");
+    // colorBits, ecc, compression, shaking, legacyMode
+    // colorBits: [0, 3]
+    // ecc: [0, 149], 255 = default
+    // compression: [0, 150], 255 = default
+    // shaking: bool
+    // legacyMode: bool
+    Module._configure(_colorBits, 255, 255, _shaking, is_4c);
 
-    var nav = document.getElementById("nav-container");
+    const nav = document.getElementById("nav-container");
     if (is_4c) {
       nav.classList.remove("mode-b");
       nav.classList.add("mode-4c");
@@ -216,7 +227,33 @@ return {
   setTitle : function(msg)
   {
     document.title = "Cimbar: " + msg;
-  }
+  },
+
+  setInterval : function(interval)
+  {
+    _interval = interval;
+  },
+
+  setShaking : function(shaking)
+  {
+    _shaking = shaking;
+  },
+
+  setStats : function(showStats)
+  {
+    _showStats = showStats;
+  },
+
+  setColorBits : function(colorBits)
+  {
+    _colorBits = colorBits;
+  },
+
+  start : function()
+  {
+    Main.nextFrame();
+  },
+
 };
 }();
 
@@ -244,7 +281,7 @@ window.addEventListener('keydown', function(e) {
       Main.blurNav();
     }
     else if (e.key == 'Tab' || e.keyCode == 9 ||
-             e.key == 'ArrowDown' || e.keyCode == 40
+            e.key == 'ArrowDown' || e.keyCode == 40
     ) {
       var nav = document.getElementById('nav-button');
       var links = document.getElementById('nav-content').getElementsByTagName('a');

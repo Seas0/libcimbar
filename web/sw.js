@@ -1,6 +1,6 @@
 
-var _cacheName = 'cimbar-js-v0.6.1';
-var _cacheFiles = [
+const _cacheName = 'cimbar-js-v0.6.1';
+const _cacheFiles = [
   '/',
   '/index.html',
   '/cimbar_js.js',

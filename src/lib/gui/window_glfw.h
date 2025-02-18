@@ -6,6 +6,7 @@
 
 #include <GLFW/glfw3.h>
 #include <chrono>
+#include <iostream>
 #include <string>
 #include <thread>
 
@@ -49,6 +50,11 @@ public:
 	bool is_good() const
 	{
 		return _good;
+	}
+
+	bool is_minimized() const
+	{
+		return glfwGetWindowAttrib(_w, GLFW_ICONIFIED);
 	}
 
 	bool should_close() const
@@ -108,13 +114,6 @@ public:
 		return _width;
 	}
 
-protected:
-	void init_opengl(int width, int height)
-	{
-		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-		glViewport(0, 0, width, height);
-	}
-
 	void swap()
 	{
 		// show next frame
@@ -124,6 +123,38 @@ protected:
 	void poll()
 	{
 		glfwPollEvents();
+	}
+
+	void set_title(std::string title)
+	{
+		glfwSetWindowTitle(_w, title.c_str());
+	}
+
+	void set_mouse_callback(GLFWcursorposfun fun)
+	{
+		glfwSetCursorPosCallback(_w, fun);
+	}
+
+	void set_mouse_button_callback(GLFWmousebuttonfun fun)
+	{
+		glfwSetMouseButtonCallback(_w, fun);
+	}
+
+	void set_key_callback(GLFWkeyfun fun)
+	{
+		glfwSetKeyCallback(_w, fun);
+	}
+
+	void set_scroll_callback(GLFWscrollfun fun)
+	{
+		glfwSetScrollCallback(_w, fun);
+	}
+
+protected:
+	void init_opengl(int width, int height)
+	{
+		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+		glViewport(0, 0, width, height);
 	}
 
 protected:

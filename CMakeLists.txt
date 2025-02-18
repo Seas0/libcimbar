@@ -62,7 +62,6 @@ set (PROJECTS
 	src/lib/image_hash
 	src/lib/serialize
 	src/lib/util
-
 	src/third_party_lib/base91
 	src/third_party_lib/cxxopts
 	src/third_party_lib/intx
@@ -76,7 +75,6 @@ if(NOT DEFINED USE_WASM)
 set(PROJECTS
 	${PROJECTS}
 	src/lib/extractor
-
 	src/exe/cimbar
 	src/exe/cimbar_extract
 	src/exe/cimbar_recv

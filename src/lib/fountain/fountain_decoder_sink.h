@@ -134,7 +134,7 @@ protected:
 
 	std::string get_filename(const FountainMetadata& md) const
 	{
-		return fmt::format("{}.{}", md.encode_id(), md.file_size());
+		return fmt::format("{:03}.{}", md.encode_id(), md.file_size());
 	}
 
 protected:

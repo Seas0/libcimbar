@@ -20,9 +20,7 @@ else()
 endif()
 
 target_link_libraries(cimbar_js
-
 	cimb_translator
-
 	correct_static
 	wirehair
 	zstd
@@ -35,7 +33,7 @@ target_link_libraries(cimbar_js
 if(USE_WASM EQUAL "2")
 	set (LINK_WASM_OPT "-s SINGLE_FILE=1")
 else()
-	set (LINK_WASM_OPT "-s WASM=1")
+	set (LINK_WASM_OPT "-s WASM=1 -s SINGLE_FILE=1")
 endif()
 
 # extra link flags for emscripten
@@ -48,7 +46,7 @@ set (LINK_WASM_LIST
 	-s USE_GLFW=3
 	-s FILESYSTEM=0
 	-s TOTAL_MEMORY=134217728
-	-s EXPORTED_FUNCTIONS='["_render","_next_frame","_initialize_GL","_encode","_configure","_malloc","_free"]'
+	-s EXPORTED_FUNCTIONS='["_render","_next_frame","_initialize_GL","_encode","_configure", "_set_encode_id", "_get_encode_id","_malloc","_free"]'
 )
 string(REPLACE ";" " " LINK_WASM_FLAGS "${LINK_WASM_LIST}")
 
