@@ -6,6 +6,7 @@ let _showStats = true;
 let _colorBits = 2;
 let _counter = 0;
 let _frameCount = 0;
+let _totalBlocks = 0;
 let _renderTime = 0;
 let _shaking = false;
 
@@ -17,6 +18,7 @@ let _memoryUsage = 0;
 let _memoryPeak = 0;
 
 let _uiTimeout = null;
+
 
 // internal helpers
 function toggleFullscreen()
@@ -148,18 +150,21 @@ function handleMouseMove(e) {
   // Set single timeout to check all elements
   _uiTimeout = setTimeout(() => {
     updateUIVisibility(e.clientX, e.clientY);
-  }, 100);
+  }, 2000);
 }
 
 function updateDebugStats(elapsed, frameCount) {
   if (!_showStats || !frameCount) return;
   
   const fps = 1000 / (elapsed || 1);
-  document.getElementById("status").textContent = 
-    `${fps.toFixed(1)} | ${_frameCount} | ${Math.ceil(_renderTime/_frameCount)}`;
+  const currentBlock = Module._get_current_block();
   
-  document.getElementById("fps-meter").style.width = 
-    `${Math.min((fps / 60) * 100, 100)}%`;
+  const progress = _totalBlocks ? Math.min((currentBlock / _totalBlocks) * 100, 100) : 0;
+  
+  document.getElementById("status").textContent = 
+    `FPS: ${fps.toFixed(1)} | Frame: ${frameCount} | Avg: ${Math.ceil(_renderTime/frameCount)}ms`;
+    
+  document.getElementById("progress-meter").style.width = `${progress}%`;
 }
 
 // public interface, exposed as Main object
@@ -256,6 +261,8 @@ return {
       return;
     }
     const res = Module._encode(data.byteOffset, data.length, encode_id);
+    _totalBlocks = Module._get_total_blocks();
+
     console.log("encoder returns: " + res);
     Main.setTitle(filename);
     Main.setActive(true);

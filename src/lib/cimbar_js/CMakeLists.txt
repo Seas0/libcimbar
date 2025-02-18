@@ -46,7 +46,7 @@ set (LINK_WASM_LIST
 	-s USE_GLFW=3
 	-s FILESYSTEM=0
 	-s TOTAL_MEMORY=134217728
-	-s EXPORTED_FUNCTIONS='["_render","_next_frame","_initialize_GL","_encode","_configure", "_set_encode_id", "_get_encode_id","_malloc","_free"]'
+	-s EXPORTED_FUNCTIONS='["_render","_next_frame","_initialize_GL","_encode","_configure", "_set_encode_id", "_get_encode_id","_get_total_blocks","_get_current_block","_malloc","_free"]'
 )
 string(REPLACE ";" " " LINK_WASM_FLAGS "${LINK_WASM_LIST}")
 

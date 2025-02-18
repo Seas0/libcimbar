@@ -8,7 +8,6 @@
 #include "util/byte_istream.h"
 
 #include <iostream>
-#include <sstream>
 
 namespace {
 // shared global objects
@@ -17,8 +16,9 @@ std::shared_ptr<fountain_encoder_stream> _fountainEncoderStream;
 std::optional<cv::Mat> _nextFrame;
 
 // encoder state
-int _frameCount = 0;
-uint8_t _encodeId = 109;
+unsigned _frameCount = 0;
+unsigned _totalBlocks = 0;
+uint8_t _encodeId = 0;
 
 // settings
 unsigned _ecc = cimbar::Config::ecc_bytes();
@@ -26,6 +26,7 @@ unsigned _colorBits = cimbar::Config::color_bits();
 int _compressionLevel = cimbar::Config::compression_level();
 bool _legacyMode = false;
 bool _shaking = true;
+
 } // namespace
 
 extern "C" {
@@ -70,12 +71,7 @@ int next_frame() {
   if (!_window || !_fountainEncoderStream)
     return 0;
 
-  // we generate 8x the amount of required symbol blocks.
-  // this number is somewhat arbitrary, but needs to not be
-  // *too* low (1-2), or we risk long runs of blocks the decoder
-  // has already seen.
-  unsigned required = _fountainEncoderStream->blocks_required() * 8;
-  if (_fountainEncoderStream->block_count() > required) {
+  if (_fountainEncoderStream->block_count() > _totalBlocks) {
     _fountainEncoderStream->restart();
     _window->shake(0);
     _frameCount = 0;
@@ -100,8 +96,7 @@ int encode(unsigned char *buffer, unsigned size, int encode_id) {
     enc.set_legacy_mode();
 
   if (encode_id < 0)
-    enc.set_encode_id(
-        ++_encodeId); // increment _encodeId every time we change files
+    enc.set_encode_id(++_encodeId); // increment the encode id if stub value is provided
   else
     enc.set_encode_id(static_cast<uint8_t>(encode_id));
 
@@ -111,6 +106,11 @@ int encode(unsigned char *buffer, unsigned size, int encode_id) {
   if (!_fountainEncoderStream)
     return 0;
 
+  // we generate 8x the amount of required symbol blocks.
+  // this number is somewhat arbitrary, but needs to not be
+  // *too* low (1-2), or we risk long runs of blocks the decoder
+  // has already seen.
+  _totalBlocks = _fountainEncoderStream->blocks_required() * 8;
   _nextFrame.reset();
   return 1;
 }
@@ -163,5 +163,15 @@ int set_encode_id(int encode_id) {
 }
 
 int get_encode_id() { return _encodeId; }
+
+unsigned get_total_blocks() {
+  if (!_fountainEncoderStream) return 0;
+  return _totalBlocks;
+}
+
+unsigned get_current_block() {
+  if (!_fountainEncoderStream) return 0;
+  return _fountainEncoderStream->block_count();
+}
 
 } // extern "C"
