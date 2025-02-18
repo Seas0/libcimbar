@@ -11,6 +11,7 @@ let _shaking = false;
 
 let _fileQueue = [];
 let _currentFileIndex = -1;
+let _processingFile = false;
 
 // internal helpers
 function toggleFullscreen()
@@ -25,17 +26,29 @@ function toggleFullscreen()
 
 function importFile(f, index)
 {
+  if (_processingFile) {
+    console.warn('File processing in progress, please wait');
+    return;
+  }
+  _processingFile = true;
   const fileReader = new FileReader();
   fileReader.onload = (event) => {
-    const imageData = new Uint8Array(event.target.result);
-    const numBytes = imageData.length * imageData.BYTES_PER_ELEMENT;
-    const dataPtr = Module._malloc(numBytes);
-    const dataOnHeap = new Uint8Array(Module.HEAPU8.buffer, dataPtr, numBytes);
-    dataOnHeap.set(imageData);
-    Main.encode(f.name, dataOnHeap, index);
-    Module._free(dataPtr);
+    try {
+      const imageData = new Uint8Array(event.target.result);
+      const numBytes = imageData.length * imageData.BYTES_PER_ELEMENT;
+      const dataPtr = Module._malloc(numBytes);
+      const dataOnHeap = new Uint8Array(Module.HEAPU8.buffer, dataPtr, numBytes);
+      dataOnHeap.set(imageData);
+      Main.encode(f.name, dataOnHeap, index);
+      Module._free(dataPtr);
 
-    Main.setHTML("current-file", f.name);
+      Main.setHTML("current-file", f.name);
+    } catch (e) {
+      console.error('Failed to encode file:', e);
+      Main.setHTML("queue-status", `Error encoding ${f.name}`);
+    } finally {
+      _processingFile = false;
+    }
   };
   fileReader.onerror = () => {
     console.error('Unable to read file ' + f.name + '.');
@@ -120,6 +133,10 @@ return {
     console.log("encoding " + filename);
     // const encode_id = fileIndex >= 0 ? fileIndex + 109 : -1;
     const encode_id = fileIndex >= 0 ? fileIndex : -1;
+    if (encode_id >= 128) {
+      console.log("encode_id is too large: " + encode_id);
+      return;
+    }
     const res = Module._encode(data.byteOffset, data.length, encode_id);
     console.log("encoder returns: " + res);
     Main.setTitle(filename);
