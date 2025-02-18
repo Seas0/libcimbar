@@ -278,7 +278,7 @@ repeating-linear-gradient(45deg, rgb(0,0,0) 0px, rgb(153,197,206) 1px,transparen
 	<canvas id="canvas" class="canvas"></canvas>
 </div>
 
-<input style="display:none;" type="file" name="file_input" id="file_input" onchange="Main.fileInput(this);" />
+<input style="display:none;" type="file" name="file_input" id="file_input" multiple onchange="Main.fileInput(this);" />
 
 <a id="invisible_click" href="javascript:;" onclick="Main.clickNav()"></a>
 
@@ -300,6 +300,10 @@ repeating-linear-gradient(45deg, rgb(0,0,0) 0px, rgb(153,197,206) 1px,transparen
         <li><a class="mode-4c" href="javascript:void(0)" onclick="Main.setMode('4C')">4C <small>(old apps)</small></a></li>
         <li class="small"><a href="https://github.com/sz3/libcimbar">github</a></li>
         <li class="small"><a href="https://github.com/sz3/cfc/releases/latest">android app</a></li>
+        <hr>
+        <li><a href="javascript:void(0)" onclick="Main.previousFile()">Previous File</a></li>
+        <li><a href="javascript:void(0)" onclick="Main.nextQueuedFile()">Next File</a></li>
+        <li><span id="queue-status">No files queued</span></li>
       </ul>
     </div>
 </div>

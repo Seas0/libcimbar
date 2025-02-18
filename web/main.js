@@ -9,6 +9,9 @@ let _frameCount = 0;
 let _renderTime = 0;
 let _shaking = false;
 
+let _fileQueue = [];
+let _currentFileIndex = -1;
+
 // internal helpers
 function toggleFullscreen()
 {
@@ -20,7 +23,7 @@ function toggleFullscreen()
   }
 }
 
-function importFile(f)
+function importFile(f, index)
 {
   const fileReader = new FileReader();
   fileReader.onload = (event) => {
@@ -29,7 +32,7 @@ function importFile(f)
     const dataPtr = Module._malloc(numBytes);
     const dataOnHeap = new Uint8Array(Module.HEAPU8.buffer, dataPtr, numBytes);
     dataOnHeap.set(imageData);
-    Main.encode(f.name, dataOnHeap);
+    Main.encode(f.name, dataOnHeap, index);
     Module._free(dataPtr);
 
     Main.setHTML("current-file", f.name);
@@ -112,10 +115,12 @@ return {
      invisible_click.style.zoom = canvas.style.zoom;
   },
 
-  encode : function(filename, data)
+  encode : function(filename, data, fileIndex)
   {
     console.log("encoding " + filename);
-    const res = Module._encode(data.byteOffset, data.length, -1);
+    // const encode_id = fileIndex >= 0 ? fileIndex + 109 : -1;
+    const encode_id = fileIndex >= 0 ? fileIndex : -1;
+    const res = Module._encode(data.byteOffset, data.length, encode_id);
     console.log("encoder returns: " + res);
     Main.setTitle(filename);
     Main.setActive(true);
@@ -126,8 +131,11 @@ return {
     console.log("drag drop?");
     console.log(event);
     const files = event.dataTransfer.files;
-    if (files && files.length === 1) {
-      importFile(files[0]);
+    if (files && files.length > 0) {
+      _fileQueue = Array.from(files);
+      _currentFileIndex = 0;
+      importFile(_fileQueue[0], 0);
+      Main.updateQueueStatus();
     }
     Main.setMode('B');
   },
@@ -156,9 +164,13 @@ return {
   fileInput : function(ev)
   {
     console.log("file input: " + ev);
-    let file = document.getElementById('file_input').files[0];
-    if (file)
-       importFile(file);
+    const files = document.getElementById('file_input').files;
+    if (files && files.length > 0) {
+      _fileQueue = Array.from(files);
+      _currentFileIndex = 0;
+      importFile(_fileQueue[0], 0);
+      Main.updateQueueStatus();
+    }
     Main.blurNav(false);
     Main.setMode('B');
   },
@@ -254,6 +266,34 @@ return {
     Main.nextFrame();
   },
 
+  previousFile: function() {
+    if (_currentFileIndex > 0) {
+      _currentFileIndex--;
+      importFile(_fileQueue[_currentFileIndex], _currentFileIndex);
+      Main.updateQueueStatus();
+    }
+    Main.blurNav(false);
+  },
+
+  nextQueuedFile: function() {
+    if (_currentFileIndex < _fileQueue.length - 1) {
+      _currentFileIndex++;
+      importFile(_fileQueue[_currentFileIndex], _currentFileIndex);
+      Main.updateQueueStatus();
+    }
+    Main.blurNav(false);
+  },
+
+  updateQueueStatus: function() {
+    const total = _fileQueue.length;
+    if (total === 0) {
+      Main.setHTML("queue-status", "No files queued");
+      return;
+    }
+    const current = _currentFileIndex + 1;
+    Main.setHTML("queue-status", `File ${current}/${total}`);
+  },
+
 };
 }();
 
@@ -269,6 +309,14 @@ window.addEventListener('keydown', function(e) {
     }
     else if (e.key == 'Backspace' || e.keyCode == 8) {
       Main.togglePause(true);
+      e.preventDefault();
+    }
+    else if (e.key == 'ArrowLeft' || e.keyCode == 37) {
+      Main.previousFile();
+      e.preventDefault();
+    }
+    else if (e.key == 'ArrowRight' || e.keyCode == 39) {
+      Main.nextQueuedFile();
       e.preventDefault();
     }
   }
