@@ -70,8 +70,8 @@ int main(int argc, char **argv) {
   string source = result["in"].as<string>();
   string outpath = result["out"].as<string>();
 
-  colorBits = std::min(3, result["colorbits"].as<int>());
   ecc = result["ecc"].as<unsigned>();
+  colorBits = std::min(3, result["colorbits"].as<int>());
 
   bool legacy_mode = false;
   if (result.count("mode")) {
@@ -119,7 +119,7 @@ int main(int argc, char **argv) {
   window.set_mouse_button_callback(mouse_button_callback_showing);
 
   Extractor ext;
-  Decoder dec(width, height);
+  Decoder dec(ecc, colorBits);
 
   unsigned chunkSize = cimbar::Config::fountain_chunk_size(
       ecc, colorBits + cimbar::Config::symbol_bits(), legacy_mode);
