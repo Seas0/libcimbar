@@ -13,6 +13,9 @@ let _fileQueue = [];
 let _currentFileIndex = -1;
 let _processingFile = false;
 
+let _memoryUsage = 0;
+let _memoryPeak = 0;
+
 // internal helpers
 function toggleFullscreen()
 {
@@ -36,11 +39,11 @@ function importFile(f, index)
     try {
       const imageData = new Uint8Array(event.target.result);
       const numBytes = imageData.length * imageData.BYTES_PER_ELEMENT;
-      const dataPtr = Module._malloc(numBytes);
+      const dataPtr = safeMemoryAlloc(numBytes);
       const dataOnHeap = new Uint8Array(Module.HEAPU8.buffer, dataPtr, numBytes);
       dataOnHeap.set(imageData);
       Main.encode(f.name, dataOnHeap, index);
-      Module._free(dataPtr);
+      safeMemoryFree(dataPtr, numBytes);
 
       Main.setHTML("current-file", f.name);
     } catch (e) {
@@ -55,6 +58,38 @@ function importFile(f, index)
   };
 
   fileReader.readAsArrayBuffer(f);
+}
+
+function updateMemoryStats(allocated) {
+  _memoryUsage += allocated;
+  _memoryPeak = Math.max(_memoryPeak, _memoryUsage);
+  const usageMB = (_memoryUsage / (1024 * 1024)).toFixed(2);
+  const peakMB = (_memoryPeak / (1024 * 1024)).toFixed(2);
+  
+  // Update memory meter
+  const meter = document.getElementById('memory-meter');
+  const percentage = Math.min((_memoryUsage / (50 * 1024 * 1024)) * 100, 100); // Assume 50MB max
+  meter.style.width = `${percentage}%`;
+  meter.style.backgroundColor = percentage > 80 ? 'red' : '#4CAF50';
+  
+  Main.setHTML('memory-stats', `Memory: ${usageMB}MB / Peak: ${peakMB}MB`);
+}
+
+function safeMemoryAlloc(size) {
+  try {
+    const ptr = Module._malloc(size);
+    if (!ptr) throw new Error('Memory allocation failed');
+    updateMemoryStats(size);
+    return ptr;
+  } catch (e) {
+    console.error('Memory allocation failed:', e);
+    throw e;
+  }
+}
+
+function safeMemoryFree(ptr, size) {
+  Module._free(ptr);
+  updateMemoryStats(-size);
 }
 
 // public interface, exposed as Main object
