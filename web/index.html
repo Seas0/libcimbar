@@ -30,12 +30,6 @@ repeating-linear-gradient(45deg, rgb(0,0,0) 0px, rgb(153,197,206) 1px,transparen
 	transition: opacity 0.4s ease-in;
 }
 
-#status {
-	position: fixed;
-	right: 0;
-	top: 0;
-}
-
 #nav-container:focus-within {
 	z-index: 1;
 }
@@ -104,6 +98,7 @@ repeating-linear-gradient(45deg, rgb(0,0,0) 0px, rgb(153,197,206) 1px,transparen
   width: 100%;
   height: 100%;
   pointer-events: none;
+  transition: opacity 0.3s ease-in-out;
 }
 #nav-container .bg {
   pointer-events: auto;
@@ -271,9 +266,50 @@ repeating-linear-gradient(45deg, rgb(0,0,0) 0px, rgb(153,197,206) 1px,transparen
         color: #00ffff;
     }
 }
+
+.meter-container {
+  position: fixed;
+  width: 200px;
+  background: rgba(0,0,0,0.7);
+  padding: 10px;
+  border-radius: 4px;
+  opacity: 0;
+  transition: opacity 0.3s ease-in-out;
+}
+
+.meter-stats {
+  color: white;
+  font-size: 12px;
+  margin-bottom: 5px;
+  text-align: right;
+  text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+}
+
+.meter-bar {
+  background: #ddd;
+  height: 10px;
+  border-radius: 5px;
+}
+
+.meter-fill {
+  width: 0%;
+  height: 100%;
+  background-color: #4CAF50;
+  border-radius: 5px;
+  transition: width 0.3s ease-out;
+}
+
+#memory-container {
+  top: 10px;
+  right: 10px;
+}
+
+#debug-container {
+  bottom: 10px;
+  right: 10px;
+}
 </style>
 
-<div id="status"></div>
 <div id="dragdrop" class="dragdrop" title="Drag and drop a file">
 	<canvas id="canvas" class="canvas"></canvas>
 </div>
@@ -308,10 +344,17 @@ repeating-linear-gradient(45deg, rgb(0,0,0) 0px, rgb(153,197,206) 1px,transparen
     </div>
 </div>
 
-<div id="memory-container" style="position: fixed; top: 10px; left: 10px; width: 200px; background: rgba(0,0,0,0.7); padding: 10px; border-radius: 4px;">
-  <div id="memory-stats" style="color: white; font-size: 12px; margin-bottom: 5px;">Memory: 0MB / Peak: 0MB</div>
-  <div style="background: #ddd; height: 10px; border-radius: 5px;">
-    <div id="memory-meter" style="width: 0%; height: 100%; background-color: #4CAF50; border-radius: 5px; transition: width 0.3s ease-out;"></div>
+<div id="memory-container" class="meter-container">
+  <div id="memory-stats" class="meter-stats">Memory: 0MB / Peak: 0MB</div>
+  <div class="meter-bar">
+    <div id="memory-meter" class="meter-fill"></div>
+  </div>
+</div>
+
+<div id="debug-container" class="meter-container">
+  <div id="status" class="meter-stats"></div>
+  <div class="meter-bar">
+    <div id="fps-meter" class="meter-fill"></div>
   </div>
 </div>
 

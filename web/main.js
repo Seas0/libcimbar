@@ -16,6 +16,8 @@ let _processingFile = false;
 let _memoryUsage = 0;
 let _memoryPeak = 0;
 
+let _uiTimeout = null;
+
 // internal helpers
 function toggleFullscreen()
 {
@@ -92,6 +94,74 @@ function safeMemoryFree(ptr, size) {
   updateMemoryStats(-size);
 }
 
+function isNavMenuActive() {
+  const navButton = document.getElementById('nav-button');
+  return navButton && document.activeElement === navButton;
+}
+
+function updateUIVisibility(mouseX, mouseY) {
+  const elements = [
+    { id: 'nav-container', threshold: 150 },
+    { id: 'memory-container', threshold: 150 },
+    { id: 'debug-container', threshold: 150 }
+  ];
+  
+  // Don't hide if nav menu is active
+  if (isNavMenuActive()) {
+    elements.forEach(({ id }) => {
+      const element = document.getElementById(id);
+      if (element) element.style.opacity = '1';
+    });
+    return;
+  }
+
+  elements.forEach(({ id, threshold }) => {
+    const element = document.getElementById(id);
+    if (!element) return;
+    
+    const rect = element.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    const distance = Math.sqrt(
+      Math.pow(mouseX - centerX, 2) + 
+      Math.pow(mouseY - centerY, 2)
+    );
+    
+    element.style.opacity = distance < threshold ? '1' : '0';
+  });
+}
+
+function handleMouseMove(e) {
+  // Clear existing timeout
+  if (_uiTimeout) clearTimeout(_uiTimeout);
+  
+  // Show all elements immediately
+  const elements = ['nav-container', 'memory-container', 'debug-container'];
+  elements.forEach(id => {
+    const element = document.getElementById(id);
+    if (element) {
+      element.style.opacity = '1';
+      element.style.transition = 'opacity 0.3s ease-in-out';
+    }
+  });
+  
+  // Set single timeout to check all elements
+  _uiTimeout = setTimeout(() => {
+    updateUIVisibility(e.clientX, e.clientY);
+  }, 100);
+}
+
+function updateDebugStats(elapsed, frameCount) {
+  if (!_showStats || !frameCount) return;
+  
+  const fps = 1000 / (elapsed || 1);
+  document.getElementById("status").textContent = 
+    `${fps.toFixed(1)} | ${_frameCount} | ${Math.ceil(_renderTime/_frameCount)}`;
+  
+  document.getElementById("fps-meter").style.width = 
+    `${Math.min((fps / 60) * 100, 100)}%`;
+}
+
 // public interface, exposed as Main object
 return {
   init : function(canvas)
@@ -99,6 +169,19 @@ return {
     Module._initialize_GL(1040, 1040);
     Main.resize();
     Main.check_GL_enabled(canvas);
+    
+    // Add mouse move listener
+    document.addEventListener('mousemove', handleMouseMove);
+    
+    // Set initial styles for all UI elements
+    const elements = ['nav-container', 'memory-container', 'debug-container'];
+    elements.forEach(id => {
+      const element = document.getElementById(id);
+      if (element) {
+        element.style.transition = 'opacity 0.3s ease-in-out';
+        element.style.opacity = '0';
+      }
+    });
   },
 
   check_GL_enabled : function(canvas)
@@ -244,9 +327,9 @@ return {
 
     if (_showStats && _frameCount) {
       _renderTime += elapsed;
-      Main.setHTML( "status", elapsed + " : " + _frameCount + " : " + Math.ceil(_renderTime/_frameCount));
+      updateDebugStats(elapsed, _frameCount);
     }
-    if ( !(_counter & 31) ) {
+    if (!(_counter & 31)) {
       Main.resize();
     }
   },
