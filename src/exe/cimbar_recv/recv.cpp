@@ -17,6 +17,7 @@
 #include <iostream>
 #include <string>
 #include <thread>
+
 using std::string;
 
 namespace {
@@ -28,6 +29,35 @@ template <typename TP> TP wait_for_frame_time(unsigned delay, const TP &start) {
   if (delay > millis)
     std::this_thread::sleep_for(std::chrono::milliseconds(delay - millis));
   return std::chrono::high_resolution_clock::now();
+}
+
+void clear_current_line() {
+  std::cout << "\r\033[K"; // Carriage return and clear line
+}
+
+void update_progress_display(int bytes, const std::vector<double> &progress) {
+  clear_current_line();
+  if (bytes > 0) {
+    std::cout << "\rDecoded: " << bytes << " bytes | Progress: ";
+    for (auto p : progress) {
+      if (p > 0.99)
+        p = 0.99;
+      std::cout << "\033[32m" << std::fixed << std::setprecision(1) << p
+                << "% \033[0m"; // Green
+    }
+    std::cout << std::flush;
+  }
+}
+
+constexpr int ALERT_THRESHOLD = 30; // Alert after ~0.5 second at 60fps
+void show_error(const std::string &message, int &failure_count) {
+  clear_current_line();
+  std::cout << "\r\033[31m" << message << "\033[0m\n"; // Red text
+
+  if (++failure_count >= ALERT_THRESHOLD) {
+    std::cout << '\a' << std::flush;
+    failure_count = 0;
+  }
 }
 } // namespace
 
@@ -46,17 +76,23 @@ int main(int argc, char **argv) {
   unsigned colorBits = cimbar::Config::color_bits();
   unsigned ecc = cimbar::Config::ecc_bytes();
   unsigned defaultFps = 60;
-  options.add_options()
-    ("i,in", "Video source.", cxxopts::value<string>())
-    ("o,out", "Output directory (decoding).", cxxopts::value<string>())
-    ("c,colorbits", "Color bits. [0-3]", cxxopts::value<int>()->default_value(turbo::str::str(colorBits)))
-    ("e,ecc", "ECC level", cxxopts::value<unsigned>()->default_value(turbo::str::str(ecc)))
-    ("f,fps", "Target decode FPS", cxxopts::value<unsigned>()->default_value(turbo::str::str(defaultFps)))
-    ("m,mode", "Select a cimbar mode. B (the default) is new to 0.6.x. 4C is the 0.5.x config. [B,4C]", cxxopts::value<string>()->default_value("B"))
-    ("H,height", "Height of the window", cxxopts::value<unsigned>()->default_value("720"))
-    ("W,width", "Width of the window", cxxopts::value<unsigned>()->default_value("1280"))
-    ("h,help", "Print usage")
-  ;
+  options.add_options()("i,in", "Video source.", cxxopts::value<string>())(
+      "o,out", "Output directory (decoding).", cxxopts::value<string>())(
+      "c,colorbits", "Color bits. [0-3]",
+      cxxopts::value<int>()->default_value(turbo::str::str(colorBits)))(
+      "e,ecc", "ECC level",
+      cxxopts::value<unsigned>()->default_value(turbo::str::str(ecc)))(
+      "f,fps", "Target decode FPS",
+      cxxopts::value<unsigned>()->default_value(turbo::str::str(defaultFps)))(
+      "m,mode",
+      "Select a cimbar mode. B (the default) is new to 0.6.x. 4C is the 0.5.x "
+      "config. [B,4C]",
+      cxxopts::value<string>()->default_value("B"))(
+      "H,height", "Height of the window",
+      cxxopts::value<unsigned>()->default_value("720"))(
+      "W,width", "Width of the window",
+      cxxopts::value<unsigned>()->default_value("1280"))("h,help",
+                                                         "Print usage");
   options.show_positional_help();
   options.parse_positional({"in", "out"});
   options.positional_help("<in> <out>");
@@ -98,14 +134,13 @@ int main(int argc, char **argv) {
   vc.set(cv::CAP_PROP_FRAME_HEIGHT, height);
   vc.set(cv::CAP_PROP_FPS, fps);
 
-  // set max camera res, and use aspect ratio for window size...
-
   std::cout << fmt::format("width: {}, height {}, exposure {}",
                            vc.get(cv::CAP_PROP_FRAME_WIDTH),
                            vc.get(cv::CAP_PROP_FRAME_HEIGHT),
                            vc.get(cv::CAP_PROP_EXPOSURE))
             << std::endl;
 
+  // set max camera res, and use aspect ratio for window size...
   // double ratio =
   //     vc.get(cv::CAP_PROP_FRAME_WIDTH) / vc.get(cv::CAP_PROP_FRAME_HEIGHT);
   // std::cout << "got dimensions " << width << "," << height << std::endl;
@@ -120,6 +155,8 @@ int main(int argc, char **argv) {
 
   Extractor ext;
   Decoder dec(ecc, colorBits);
+  // TODO: XXX Currently colorBits=3 cause a crash with SEGV
+  // Find out why.
 
   unsigned chunkSize = cimbar::Config::fountain_chunk_size(
       ecc, colorBits + cimbar::Config::symbol_bits(), legacy_mode);
@@ -127,6 +164,7 @@ int main(int argc, char **argv) {
       outpath, chunkSize);
 
   cv::Mat mat;
+  int consecutive_failures = 0;
 
   unsigned count = 0;
   std::chrono::time_point start = std::chrono::high_resolution_clock::now();
@@ -139,7 +177,7 @@ int main(int argc, char **argv) {
       break;
 
     if (!vc.read(mat)) {
-      std::cerr << "failed to read from cam" << std::endl;
+      show_error("Failed to read from camera", consecutive_failures);
       continue;
     }
 
@@ -157,17 +195,16 @@ int main(int argc, char **argv) {
     bool shouldPreprocess = true;
     int res = ext.extract(img, img);
     if (!res) {
-      std::cerr << "no extract " << mat.cols << "," << mat.rows << std::endl;
+      show_error(fmt::format("No extract detected ({},{})", mat.cols, mat.rows),
+                 consecutive_failures);
       continue;
-    } else if (res == Extractor::NEEDS_SHARPEN)
-      shouldPreprocess = true;
+    }
+    consecutive_failures = 0; // Reset counter on successful extract
 
     // decode
     int bytes = dec.decode_fountain(img, sink, color_mode, shouldPreprocess);
     if (bytes > 0) {
-      std::cerr << "got some bytes " << bytes << std::endl;
-      for (auto &p : sink.get_progress())
-        std::cerr << fmt::format("{:.02f} ", p) << std::endl;
+      update_progress_display(bytes, sink.get_progress());
     }
   }
 
